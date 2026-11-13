@@ -1,0 +1,199 @@
+<main class="workspace">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="ShieldGuardAI inicio">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span class="brand-name">ShieldGuard<span>AI</span></span>
+    </a>
+
+    <div class="topbar-actions">
+      <span class="environment-label">Entorno de demostración</span>
+      <span class="connection-pill" [class.connected]="isConnected">
+        <span class="connection-dot"></span>
+        {{ isConnected ? 'Motor conectado' : 'Conectando motor' }}
+      </span>
+      <button class="button button-subtle simulator-button" type="button" (click)="toggleSimulator()">
+        <span aria-hidden="true">{{ simulatorRunning ? 'Ⅱ' : '▶' }}</span>
+        {{ simulatorRunning ? 'Pausar flujo' : 'Reanudar flujo' }}
+      </button>
+    </div>
+  </header>
+
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">ShieldGuardAI <span>/</span> Consola de riesgo</p>
+      <h1>Monitor de transacciones</h1>
+      <p class="page-description">Revisa señales de riesgo y decide qué hacer con cada alerta.</p>
+    </div>
+    <div class="demo-note"><span aria-hidden="true">●</span> Datos simulados</div>
+  </section>
+
+  <section class="metrics" aria-label="Resumen operativo">
+    <article class="metric-card">
+      <span class="metric-label">Transacciones evaluadas</span>
+      <strong class="metric-value">{{ stats.totalProcessed | number }}</strong>
+      <span class="metric-foot">Desde que inició esta sesión</span>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Alertas por revisar</span>
+      <strong class="metric-value metric-amber">{{ openAlertCount }}</strong>
+      <span class="metric-foot">Tarjetas con una alerta activa</span>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Tarjetas congeladas</span>
+      <strong class="metric-value metric-red">{{ stats.activeFreezes }}</strong>
+      <span class="metric-foot">Bloqueo preventivo en la demo</span>
+    </article>
+  </section>
+
+  <section class="console-grid">
+    <section class="panel alert-panel" aria-labelledby="alerts-heading">
+      <div class="panel-heading">
+        <div>
+          <h2 id="alerts-heading">Alertas priorizadas</h2>
+          <p>Una alerta reciente por tarjeta</p>
+        </div>
+        <span class="count-pill">{{ prioritizedAlerts.length }}</span>
+      </div>
+
+      <div class="alert-list" *ngIf="prioritizedAlerts.length; else emptyAlerts">
+        <button
+          *ngFor="let alert of prioritizedAlerts"
+          type="button"
+          class="alert-row"
+          [class.selected]="selectedAlert?.id === alert.id"
+          [class.row-frozen]="alert.status === 'CONGELADO_PREVENTIVO'"
+          (click)="selectAlert(alert)"
+        >
+          <span class="risk-indicator" [ngClass]="alert.riskScore.riskLevel"></span>
+          <span class="alert-main">
+            <span class="alert-row-top">
+              <strong>{{ alert.cardNumber }}</strong>
+              <span class="risk-tag" [ngClass]="alert.riskScore.riskLevel">{{ riskLabel(alert) }}</span>
+            </span>
+            <span class="alert-merchant">{{ alert.merchantName }}</span>
+            <span class="alert-row-bottom">
+              <span>{{ formatCLP(alert.amountClp) }}</span>
+              <span>{{ alert.createdAt | date:'HH:mm:ss' }}</span>
+            </span>
+          </span>
+          <span class="alert-status" [ngClass]="alert.status">{{ statusLabel(alert.status) }}</span>
+        </button>
+      </div>
+
+      <ng-template #emptyAlerts>
+        <div class="empty-state">
+          <span class="empty-icon" aria-hidden="true">✓</span>
+          <strong>Todo en orden</strong>
+          <span>No hay alertas activas. El motor sigue revisando transacciones.</span>
+        </div>
+      </ng-template>
+    </section>
+
+    <section class="panel detail-panel" aria-labelledby="detail-heading">
+      <ng-container *ngIf="selectedAlert; else noSelection">
+        <div class="panel-heading detail-heading">
+          <div>
+            <h2 id="detail-heading">Detalle de la alerta</h2>
+            <p>{{ selectedAlert.transactionId }} · {{ selectedAlert.createdAt | date:'dd MMM yyyy, HH:mm:ss' }}</p>
+          </div>
+          <span class="status-pill" [ngClass]="selectedAlert.status">{{ statusLabel(selectedAlert.status) }}</span>
+        </div>
+
+        <div class="transaction-summary">
+          <div>
+            <span class="detail-label">Tarjeta</span>
+            <strong class="card-number">{{ selectedAlert.cardNumber }}</strong>
+          </div>
+          <div class="amount-block">
+            <span class="detail-label">Monto de la transacción</span>
+            <strong class="transaction-amount">{{ formatCLP(selectedAlert.amountClp) }}</strong>
+          </div>
+          <div class="merchant-block">
+            <span class="detail-label">Comercio</span>
+            <strong>{{ selectedAlert.merchantName }}</strong>
+          </div>
+        </div>
+
+        <div class="score-block">
+          <div class="score-copy">
+            <span class="detail-label">Score de riesgo</span>
+            <strong>{{ selectedAlert.riskScore.score }}<small>/100</small></strong>
+          </div>
+          <div class="score-track" aria-hidden="true">
+            <span [ngClass]="selectedAlert.riskScore.riskLevel" [style.width.%]="selectedAlert.riskScore.score"></span>
+          </div>
+          <span class="risk-tag large" [ngClass]="selectedAlert.riskScore.riskLevel">{{ riskLabel(selectedAlert) }}</span>
+        </div>
+
+        <section class="ml-shadow-block" *ngIf="selectedAlert.riskScore.mlPrediction as prediction" aria-label="Predicción experimental del modelo ML">
+          <div class="ml-shadow-heading">
+            <div>
+              <h3>CatBoost experimental</h3>
+              <p>Señal exploratoria; no cambia la decisión operativa.</p>
+            </div>
+            <strong>{{ prediction.experimentalScore }}<small>/100</small></strong>
+          </div>
+          <div class="ml-shadow-meta">
+            <span>{{ prediction.modelScope === 'synthetic' ? 'Entrenado con datos sintéticos' : 'Dataset etiquetado aprobado' }}</span>
+            <span>{{ prediction.probabilityCalibrated ? 'Calibrado' : 'No calibrado' }}</span>
+          </div>
+          <p class="ml-shadow-version">Versión {{ prediction.modelVersion }}</p>
+          <ul *ngIf="prediction.reasonCodes.length">
+            <li *ngFor="let reason of prediction.reasonCodes">{{ mlReasonLabel(reason) }}</li>
+          </ul>
+        </section>
+
+        <div class="signals-block">
+          <h3>Señales detectadas</h3>
+          <ul *ngIf="selectedAlert.riskScore.triggeredRules.length; else noSignals">
+            <li *ngFor="let factor of selectedAlert.riskScore.triggeredRules">{{ factor }}</li>
+          </ul>
+          <ng-template #noSignals><p class="muted-copy">No se registraron señales adicionales.</p></ng-template>
+        </div>
+
+        <div class="action-area">
+          <button
+            *ngIf="selectedAlert.status !== 'CONGELADO_PREVENTIVO' && selectedAlert.status !== 'REVERTIDO'"
+            class="button button-danger action-button"
+            type="button"
+            (click)="freezeSelected()"
+          >Congelar tarjeta</button>
+          <button
+            *ngIf="selectedAlert.status === 'CONGELADO_PREVENTIVO'"
+            class="button button-success action-button"
+            type="button"
+            (click)="unfreezeSelected()"
+          >Revertir congelamiento</button>
+          <p *ngIf="selectedAlert.status === 'REVERTIDO'" class="resolved-note">El congelamiento de esta alerta fue revertido.</p>
+          <p class="action-help">Acciones simuladas. No se conecta a una red bancaria.</p>
+        </div>
+      </ng-container>
+
+      <ng-template #noSelection>
+        <div class="empty-state detail-empty">
+          <span class="empty-icon" aria-hidden="true">⌕</span>
+          <strong>Selecciona una alerta</strong>
+          <span>El detalle de riesgo y las acciones disponibles aparecerán aquí.</span>
+        </div>
+      </ng-template>
+    </section>
+  </section>
+
+  <section class="panel test-panel" aria-labelledby="tests-heading">
+    <div class="test-copy">
+      <span class="test-icon" aria-hidden="true">↗</span>
+      <div>
+        <h2 id="tests-heading">Probar escenarios</h2>
+        <p>Inyecta una transacción simulada para recorrer el flujo de alertas.</p>
+      </div>
+    </div>
+    <div class="scenario-buttons">
+      <button class="button button-outline" type="button" (click)="injectAttack('AUTOFRAUDE_RETAIL')">Compra electrónica · $230.000</button>
+      <button class="button button-outline" type="button" (click)="injectAttack('SIMULTANEO_ATM')">Compra desde otra ubicación · $84.990</button>
+      <button class="button button-outline" type="button" (click)="injectAttack('MICRO_BURST')">Compra de juego · $12.500</button>
+    </div>
+  </section>
+
+  <div class="toast" *ngIf="actionMessage" role="status">{{ actionMessage }}</div>
+  <footer class="page-footer">ShieldGuardAI · Prototipo de evaluación basado en reglas</footer>
+</main>

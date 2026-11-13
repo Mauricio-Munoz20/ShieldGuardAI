@@ -1,0 +1,14 @@
+overrides:
+  "@babel/generator": "7.26.9"
+  "@babel/traverse": "7.26.9"
+  "@babel/core": "7.26.9"
+
+onlyBuiltDependencies:
+  - esbuild
+  - lmdb
+  - msgpackr-extract
+
+allowBuilds:
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true
